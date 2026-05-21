@@ -1,4 +1,4 @@
-# Модель: Оптимальне керування процесом очищення водойми ( 5 семестр )
+# Модель: Оптимальне керування процесом очищення водойми (5 sem)
 # Автор: Маляренко Анастасія, група АІ-233
 
 name: CI/CD Pipeline for Water Optimization API
@@ -29,10 +29,13 @@ jobs:
 
     - name: Lint code with flake8 (Syntax check)
       run: |
-        # Зупиняє збірку, якщо є критичні синтаксичні помилки або невизначені змінні
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Наступний рядок трактує інші попередження як підказки, не ламаючи білд
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    # === ДОДАТКОВИЙ ЕТАП ТЕСТУВАННЯ ДЛЯ 9 ВАРІАНТУ ===
+    释放- name: Run automated unit tests
+      run: |
+        python -m unittest test_app.py
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
