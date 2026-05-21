@@ -1,5 +1,6 @@
-# Модель: Оптимальне керування процесом очищення водойми (5 sem)
+# Модель: Оптимальне керування процесом очищення водойми (5 семестр)
 # Автор: Маляренко Анастасія, група АІ-233
+# Варіант: 9 (Непарний — з етапом тестування unittest)
 
 name: CI/CD Pipeline for Water Optimization API
 
@@ -32,10 +33,10 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    # === ДОДАТКОВИЙ ЕТАП ТЕСТУВАННЯ ДЛЯ 9 ВАРІАНТУ ===
-    释放- name: Run automated unit tests
+    # === АВТОМАТИЗОВАНЕ ТЕСТУВАННЯ ДЛЯ 9 ВАРІАНТУ ===
+    - name: Run automated unit tests
       run: |
-        python -m unittest test_app.py
+        python -m unittest app.py
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
