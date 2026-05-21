@@ -1,82 +1,102 @@
 # Модель: Оптимальне керування процесом очищення водойми (5 семестр)
-# Автор: Маляренко Анастасія (у групі з Брагар Софією), група АІ-233
+# Автор: Маляренко Анастасія, група АІ-233
+# Варіант: 9 (Непарний — з етапом автоматичного тестування unittest)
 
-from flask import Flask, request, jsonify
+import unittest
+import json
 import numpy as np
-from scipy.integrate import solve_ivp
+from flask import Flask, jsonify, request
 from scipy.optimize import minimize
 
 app = Flask(__name__)
 
-class WaterOptimizer:
-    def __init__(self, V, Q, k, C_initial, C_target, Cin_max):
-        self.V = V; self.Q = Q; self.k = k
-        self.C_initial = C_initial
-        self.C_target = C_target
-        self.Cin_max = Cin_max
+# --- МАТЕМАТИЧНА МОДЕЛЬ (ВАРІАНТ 9) ---
+def objective_function(u):
+    """
+    Цільова функція: мінімізація витрат енергії на очищення.
+    u[0] - швидкість подачі коагулянту
+    u[1] - інтенсивність аерації
+    """
+    return 0.6 * (u[0]**2) + 0.4 * (u[1]**2)
 
-    def cstr_ode(self, t, C, Cin_profile, t_points):
-        u_t = np.interp(t, t_points, Cin_profile)
-        return (self.Q / self.V) * u_t - (self.Q / self.V + self.k) * C
-
-    def objective_minimum_effort(self, Cin_profile, T_fix, N_steps):
-        t_points = np.linspace(0, T_fix, N_steps)
-        sol = solve_ivp(
-            self.cstr_ode, (0, T_fix), [self.C_initial],
-            args=(Cin_profile, t_points), method='RK45', t_eval=t_points
-        )
-        C_final = sol.y[0, -1]
-        penalty = 0 if C_final <= self.C_target else (C_final - self.C_target)**2 * 1e5
-        dt = T_fix / (N_steps - 1)
-        return np.sum(Cin_profile**2) * dt + penalty
-
-    def find_optimal_control(self, T_fix, N_steps=50):
-        initial_guess = np.ones(N_steps) * self.Cin_max
-        bounds = [(0, self.Cin_max)] * N_steps
-        result = minimize(
-            self.objective_minimum_effort, initial_guess,
-            args=(T_fix, N_steps), method='SLSQP', bounds=bounds
-        )
-        return result.x, result.fun
+def constraint_pollution(u):
+    """
+    Обмеження на рівень забруднення води після очищення.
+    Концентрація шкідливих речовин повинна знизитися до безпечного рівня.
+    """
+    initial_pollution = 15.0  # початковий рівень
+    # Модель зниження забруднення залежно від керуючих впливів
+    final_pollution = initial_pollution - (2.5 * u[0] + 1.8 * u[1])
+    return 1.0 - final_pollution  # final_pollution <= 1.0 мг/л
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
     try:
-        # Отримання параметрів з JSON-запиту
-        data = request.get_json() or {}
+        # Початкове наближення для алгоритму оптимізації
+        u0 = [1.0, 1.0]
         
-        # Значення за замовчуванням, якщо параметри не передані
-        V = float(data.get('V', 1000))
-        Q = float(data.get('Q', 50))
-        k = float(data.get('k', 0.01))
-        C_initial = float(data.get('C_initial', 0.5))
-        C_target = float(data.get('C_target', 0.1))
-        Cin_max = float(data.get('Cin_max', 0.2))
-        T_fix = float(data.get('T_fix', 10))
-
-        # Запуск обчислень моделі
-        optimizer = WaterOptimizer(V, Q, k, C_initial, C_target, Cin_max)
-        control_profile, cost = optimizer.find_optimal_control(T_fix=T_fix)
-
-        # Формування відповіді API
-        return jsonify({
-            "status": "success",
-            "meta": {
-    "model": "Optimal control of water purification process",
-    "authors": "Maliarenko Anastasiia, Brahar Sofiia",
-    "group": "AI-233"
-},
-            "input_parameters": {
-                "V": V, "Q": Q, "k": k, "C_initial": C_initial, "C_target": C_target, "Cin_max": Cin_max, "T_fix": T_fix
-            },
-            "result": {
-                "minimum_energy_cost": float(cost),
-                "optimal_control_vector_sample": [float(x) for x in control_profile[:5]]  # перші 5 точок для компактності
-            }
-        }), 200
-
+        # Граничні умови для керуючих впливів (технічні обмеження обладнання)
+        bounds = ((0.0, 10.0), (0.0, 10.0))
+        
+        # Опис системи обмежень
+        constraints = {'type': 'ineq', 'fun': constraint_pollution}
+        
+        # Пошук оптимального керування
+        solution = minimize(objective_function, u0, method='SLSQP', bounds=bounds, constraints=constraints)
+        
+        if solution.success:
+            return jsonify({
+                "status": "success",
+                "model": "Optimal Water Purification Management",
+                "variant": 9,
+                "author": "Maliarenko Anastasia",
+                "result": {
+                    "coagulant_rate_u1": float(round(solution.x[0], 4)),
+                    "aeration_intensity_u2": float(round(solution.x[1], 4)),
+                    "minimum_energy_cost": float(round(solution.fun, 4))
+                }
+            }), 200
+        else:
+            return jsonify({"status": "error", "message": "Optimization failed"}), 400
+            
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "status": "active",
+        "message": "Water Optimization API is running. Use /calculate endpoint."
+    }), 200
+
+
+class FlaskAPITestCase(unittest.TestCase):
+    def setUp(self):
+        """Налаштування віртуального клієнта перед початком тестування"""
+        self.client = app.test_client()
+        app.config['TESTING'] = True
+
+    def test_index_endpoint(self):
+        """Перевірка доступності головної сторінки сервісу"""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(data['status'], 'active')
+
+    def test_calculate_endpoint_success(self):
+        """Перевірка роботи математичного алгоритму оптимізації"""
+        response = self.client.post('/calculate', data=json.dumps({}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        data = json.loads(response.data)
+        self.assertEqual(data['status'], 'success')
+        self.assertIn('result', data)
+        self.assertIn('minimum_energy_cost', data['result'])
+        # Тест валідує, що витрати енергії є позитивним числом
+        self.assertGreater(data['result']['minimum_energy_cost'], 0)
+
+
+# Логіка запуску додатка
 if __name__ == '__main__':
+    # Сервер запускається у звичайному режимі, якщо файл викликано стандартно
     app.run(host='0.0.0.0', port=5000)
