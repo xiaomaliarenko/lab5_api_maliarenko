@@ -62,10 +62,10 @@ def calculate():
         return jsonify({
             "status": "success",
             "meta": {
-                "model": "Оптимальне керування процесом очищення водойми",
-                "authors": "Маляренко Анастасія, Брагар Софія",
-                "group": "АІ-233"
-            },
+    "model": "Optimal control of water purification process",
+    "authors": "Maliarenko Anastasiia, Brahar Sofiia",
+    "group": "AI-233"
+},
             "input_parameters": {
                 "V": V, "Q": Q, "k": k, "C_initial": C_initial, "C_target": C_target, "Cin_max": Cin_max, "T_fix": T_fix
             },
